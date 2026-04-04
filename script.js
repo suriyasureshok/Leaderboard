@@ -3,6 +3,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   setPersistence,
   browserLocalPersistence,
@@ -25,43 +27,30 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // Replace placeholder values with your Firebase project credentials.
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyD5FjkNJvivu1y2SbkykKiuaZJ1mfDBFYA",
   authDomain: "nammarust-c5c21.firebaseapp.com",
   projectId: "nammarust-c5c21",
   storageBucket: "nammarust-c5c21.firebasestorage.app",
   messagingSenderId: "66110495769",
   appId: "1:66110495769:web:9215d0122f527e2d409e88",
-  measurementId: "G-3HBR3687F1"
 };
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 
 // Optional: use this for first-time bootstrapping of the super admin role.
 const APP_CONFIG = {
-  bootstrapSuperAdminEmail: "your-super-admin@example.com",
+  bootstrapSuperAdminEmail: "suriyasureshkumarkannian@gmail.com",
 };
 
 // Replace with Google Form action URL and entry IDs.
 const GOOGLE_FORM_CONFIG = {
-  actionUrl: "https://docs.google.com/forms/d/e/YOUR_GOOGLE_FORM_ID/formResponse",
+  actionUrl: "https://docs.google.com/forms/d/e/1FAIpQLSe1km1PmeIqhv_VkETrK2x7CxaeVIgere2xAMP2hzUTyF7KXw/formResponse",
   fields: {
-    name: "entry.1111111111",
-    email: "entry.2222222222",
-    github: "entry.3333333333",
-    explanation: "entry.4444444444",
-    task: "entry.5555555555",
-    linkedin: "entry.6666666666",
+    name: "entry.32089814",
+    email: "entry.247825103",
+    github: "entry.1069193195",
+    explanation: "entry.1280007688",
+    task: "entry.949126181",
+    linkedin: "entry.1126576832",
   },
 };
 
@@ -163,6 +152,7 @@ let firebaseApp = null;
 let auth = null;
 let db = null;
 let provider = null;
+let authBusy = false;
 
 function hasFirebaseConfig() {
   return Object.values(FIREBASE_CONFIG).every((value) => value && !String(value).includes("YOUR_"));
@@ -563,11 +553,49 @@ async function signInWithGoogle() {
     return;
   }
 
+  if (authBusy) return;
+
+  authBusy = true;
+  dom.loginBtn.disabled = true;
+  dom.loginBtn.textContent = "Signing in...";
+
   try {
     await signInWithPopup(auth, provider);
   } catch (error) {
     console.error(error);
-    setNotice(dom.submissionNotice, "Google sign-in failed. Please try again.", true);
+
+    // Popup flows can be blocked on some browsers/dev setups. Fallback to redirect.
+    if (error?.code === "auth/popup-blocked" || error?.code === "auth/cancelled-popup-request") {
+      setNotice(dom.submissionNotice, "Popup was blocked. Switching to redirect sign-in...", true);
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+
+    if (error?.code === "auth/unauthorized-domain") {
+      const host = window.location.hostname || "current-host";
+      setNotice(
+        dom.submissionNotice,
+        `This domain is not authorized in Firebase Auth. Add ${host} in Firebase Console > Authentication > Settings > Authorized domains.`,
+        true
+      );
+      return;
+    }
+
+    if (error?.code === "auth/operation-not-allowed") {
+      setNotice(dom.submissionNotice, "Google Sign-In is disabled in Firebase Authentication provider settings.", true);
+      return;
+    }
+
+    if (error?.code === "auth/popup-closed-by-user") {
+      setNotice(dom.submissionNotice, "Sign-in popup was closed before completion.", true);
+      return;
+    }
+
+    setNotice(dom.submissionNotice, `Google sign-in failed (${error?.code || "unknown"}).`, true);
+  } finally {
+    authBusy = false;
+    dom.loginBtn.disabled = false;
+    dom.loginBtn.textContent = "Sign in with Google";
   }
 }
 
@@ -1151,29 +1179,54 @@ async function resetMonthlyView() {
 }
 
 async function refreshDataByRole() {
-  await fetchChallenges();
-  await updateLeaderboard();
+  try {
+    await fetchChallenges();
+    await updateLeaderboard();
 
-  if (isAdminRole()) {
-    await fetchMonthlySubmissions();
-  } else {
-    state.submissions = [];
-    renderAdminSubmissions();
-  }
+    if (isAdminRole()) {
+      await fetchMonthlySubmissions();
+    } else {
+      state.submissions = [];
+      renderAdminSubmissions();
+    }
 
-  if (isSuperAdminRole()) {
-    await refreshRoleTable();
+    if (isSuperAdminRole()) {
+      await refreshRoleTable();
+    }
+  } catch (error) {
+    console.error("Role-based data refresh failed:", error);
+    if (error?.code === "permission-denied") {
+      setNotice(
+        dom.submissionNotice,
+        "Signed in, but Firestore rules blocked data access. Allow signed-in users to read/write their profile.",
+        true
+      );
+    }
   }
 }
 
 async function handleAuthStateChange(user) {
   state.currentUser = user;
+  state.currentRole = "user";
+
+  // Reflect auth state immediately, even if Firestore rules reject profile queries.
+  updateAuthUi();
+  updateAdminAccessView();
 
   if (user) {
-    await upsertUserProfile(user);
-    state.currentRole = await checkUserRole(user.uid);
-  } else {
-    state.currentRole = "user";
+    try {
+      await upsertUserProfile(user);
+      state.currentRole = await checkUserRole(user.uid);
+    } catch (error) {
+      console.error("User profile sync failed:", error);
+      if (error?.code === "permission-denied") {
+        setNotice(
+          dom.submissionNotice,
+          "Login succeeded, but Firestore profile write was denied. Update Firestore rules for users/{uid} create/update.",
+          true
+        );
+      }
+    }
   }
 
   updateAuthUi();
@@ -1223,11 +1276,9 @@ async function initFirebase() {
   auth = getAuth(firebaseApp);
   db = getFirestore(firebaseApp);
   provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
 
   await setPersistence(auth, browserLocalPersistence);
-  await resetMonthlyView();
-  await refreshDataByRole();
-
   onAuthStateChanged(auth, async (user) => {
     try {
       await handleAuthStateChange(user);
@@ -1235,6 +1286,20 @@ async function initFirebase() {
       console.error("Auth state processing failed:", error);
     }
   });
+
+  try {
+    await getRedirectResult(auth);
+  } catch (error) {
+    console.error("Redirect sign-in failed:", error);
+    setNotice(dom.submissionNotice, `Redirect sign-in failed (${error?.code || "unknown"}).`, true);
+  }
+
+  try {
+    await resetMonthlyView();
+  } catch (error) {
+    // Do not block sign-in flow for non-critical monthly view reset errors.
+    console.error("Monthly reset initialization warning:", error);
+  }
 }
 
 function renderSetupHints() {

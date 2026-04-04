@@ -69,48 +69,129 @@ This app uses these collections:
 3. submissions
 4. archives (created automatically for monthly archive)
 
-### users document structure
+Important: in Firestore, a collection exists only after at least one document is created.
 
-- userId
-- name
-- email
-- role (user, admin, super_admin)
-- totalPoints
-- tasksCompleted
-- month
+### 6.1 Firestore field type quick reference
 
-Document id should be Firebase auth uid.
+Use these Firestore types while creating attributes:
 
-### challenges document structure
+1. String
+2. Number
+3. Boolean
+4. Timestamp
+5. Map
+6. Array
 
-- id
-- title
-- description
-- difficulty (Easy, Medium, Hard, Open)
-- requirements
-- month
+For this app, you mainly need String, Number, Timestamp, and Map.
 
-### submissions document structure
+### 6.2 Create users collection (step by step)
 
-- id
-- userId
-- userName
-- userEmail
-- taskId
-- taskTitle
-- github
-- explanation
-- linkedin
-- month
-- timestamp
-- scores
-  - solve
-  - explanation
-  - code
-  - linkedin
-  - bonus
-  - penalty
-- totalScore
+Recommended: do not manually add most users. The app creates or updates users on Google sign-in.
+
+If you still want to create one manually:
+
+1. Open Firestore Database.
+2. Go to Data tab.
+3. Click Start collection.
+4. Collection ID: users
+5. Document ID: set this to Firebase Auth UID (important for role checks).
+6. Add fields exactly as below.
+7. Click Save.
+
+users fields and types:
+
+1. userId: String (same value as document ID)
+2. name: String
+3. email: String
+4. role: String (allowed values: user, admin, super_admin)
+5. totalPoints: Number (start with 0)
+6. tasksCompleted: Number (start with 0)
+7. month: String (example: April 2026)
+8. createdAt: Timestamp (optional if creating manually)
+9. updatedAt: Timestamp (optional if creating manually)
+
+### 6.3 Create challenges collection (step by step)
+
+1. In Data tab, click Start collection (or Add document under existing collection).
+2. Collection ID: challenges
+3. Document ID: Auto-ID is fine.
+4. Add fields below.
+5. Save document.
+6. Open saved document, copy generated document ID, then add id field with the same value.
+
+challenges fields and types:
+
+1. id: String (same as document ID)
+2. title: String
+3. description: String
+4. difficulty: String (must be exactly one of Easy, Medium, Hard, Open)
+5. requirements: String
+6. month: String (must match app month format, example: April 2026)
+7. createdAt: Timestamp
+8. updatedAt: Timestamp
+
+### 6.4 Create submissions collection (step by step)
+
+Recommended: submissions should normally come from app form submission, not manual entry.
+
+If you must seed one document manually:
+
+1. In Data tab, click Start collection (or Add document).
+2. Collection ID: submissions
+3. Document ID: Auto-ID.
+4. Add top-level fields below.
+5. For scores, choose type Map and add child fields.
+6. Save document.
+7. Add id field equal to document ID.
+
+submissions top-level fields and types:
+
+1. id: String (same as document ID)
+2. userId: String (must match users document ID)
+3. userName: String
+4. userEmail: String
+5. taskId: String (challenge document ID)
+6. taskTitle: String
+7. github: String (URL)
+8. explanation: String
+9. linkedin: String (URL)
+10. month: String (example: April 2026)
+11. timestamp: Timestamp
+12. totalScore: Number (start with 0 or computed value)
+13. scoredBy: String (optional, admin uid)
+14. scoredAt: Timestamp (optional)
+
+scores map (inside submissions.scores):
+
+1. solve: Number (0 to 10)
+2. explanation: Number (0 to 10)
+3. code: Number (0 to 5)
+4. linkedin: Number (0 to 5)
+5. bonus: Number (0 to 5)
+6. penalty: Number (-10 to 0)
+
+### 6.5 archives collection (auto-created by app)
+
+You do not need to create this manually. App writes here during monthly reset/archive.
+
+archives fields and types:
+
+1. type: String (user_monthly_archive)
+2. userId: String
+3. month: String
+4. totalPoints: Number
+5. tasksCompleted: Number
+6. archivedAt: Timestamp
+
+### 6.6 Minimum data to make UI non-empty
+
+After config is done, at minimum do this:
+
+1. Sign in once with Google to create your users document.
+2. Add at least one challenges document for current month (example: April 2026).
+3. Submit one form entry from the app to create a submissions document.
+
+If month string does not exactly match current app month label, data will not appear in UI.
 
 ## 7. Set first super admin
 
