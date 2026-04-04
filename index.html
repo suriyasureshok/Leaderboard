@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NammaRust | Monthly Rust Challenge Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Poppins:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-orb bg-orb-1" aria-hidden="true"></div>
+    <div class="bg-orb bg-orb-2" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <div class="container header-shell">
+        <a class="brand" href="#home" data-route-link>
+          <span class="brand-mark">NR</span>
+          <span>
+            <strong>NammaRust</strong>
+            <small>Developer Challenge Arena</small>
+          </span>
+        </a>
+
+        <button id="menuToggle" class="menu-toggle" aria-label="Toggle menu">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav id="mainNav" class="main-nav">
+          <a href="#home" data-route-link>Home</a>
+          <a href="#challenges" data-route-link>Challenges</a>
+          <a href="#submit" data-route-link>Submit</a>
+          <a href="#leaderboard" data-route-link>Leaderboard</a>
+          <a href="#start-here" data-route-link>Start Here</a>
+          <a href="#admin" data-route-link id="adminNavLink" class="hidden">Admin</a>
+        </nav>
+
+        <div class="auth-cluster">
+          <div id="userBadge" class="user-badge hidden">
+            <p id="userName">Guest</p>
+            <small id="userRole">user</small>
+          </div>
+          <button id="loginBtn" class="btn btn-primary">Sign in with Google</button>
+          <button id="logoutBtn" class="btn btn-ghost hidden">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container main-shell">
+      <section class="page" data-page="home">
+        <div class="hero card reveal">
+          <p class="eyebrow">Monthly Rust Challenge</p>
+          <h1>Compete. Explain. Ship Better Rust.</h1>
+          <p>
+            NammaRust runs curated monthly coding challenges for the developer community.
+            Submit your solution, earn points, and climb a fair leaderboard managed by admins.
+          </p>
+          <div class="hero-metrics">
+            <article>
+              <h3>Prize Pool</h3>
+              <p>INR 200 + community recognition</p>
+            </article>
+            <article>
+              <h3>Current Month</h3>
+              <p id="currentMonthLabel">-</p>
+            </article>
+            <article>
+              <h3>Scoring Rules</h3>
+              <p>Transparent and admin-audited</p>
+            </article>
+          </div>
+          <div class="hero-actions">
+            <a href="#challenges" data-route-link class="btn btn-primary">View Challenges</a>
+            <a href="#start-here" data-route-link class="btn btn-ghost">How to Participate</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="page hidden" data-page="challenges">
+        <div class="section-head reveal">
+          <h2>Challenges</h2>
+          <p>Pick your level, complete tasks, and submit before the deadline to gain bonus points.</p>
+        </div>
+
+        <div class="rule-banner card reveal">
+          <h3>Deadline Bonus Rules</h3>
+          <p>Submit on the same day for +5 points. Submit the next day for +2 points.</p>
+        </div>
+
+        <div class="challenge-groups">
+          <article class="card challenge-group reveal">
+            <header><h3>Easy</h3></header>
+            <div id="easyChallenges" class="challenge-list"></div>
+          </article>
+
+          <article class="card challenge-group reveal">
+            <header><h3>Medium</h3></header>
+            <div id="mediumChallenges" class="challenge-list"></div>
+          </article>
+
+          <article class="card challenge-group reveal">
+            <header><h3>Hard</h3></header>
+            <div id="hardChallenges" class="challenge-list"></div>
+          </article>
+
+          <article class="card challenge-group reveal">
+            <header><h3>Open Challenge</h3></header>
+            <div id="openChallenges" class="challenge-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page hidden" data-page="submit">
+        <div class="section-head reveal">
+          <h2>Submission Form</h2>
+          <p>Submit your solution link, explanation, and proof of sharing to be scored by admins.</p>
+        </div>
+
+        <form id="submissionForm" class="card form-card reveal">
+          <div class="form-grid">
+            <label>
+              Name
+              <input id="submitName" name="name" type="text" readonly required />
+            </label>
+            <label>
+              Email
+              <input id="submitEmail" name="email" type="email" readonly required />
+            </label>
+            <label>
+              Task Selection
+              <select id="taskSelect" name="task" required>
+                <option value="">Select a challenge</option>
+              </select>
+            </label>
+            <label>
+              GitHub Link
+              <input id="githubLink" name="github" type="url" placeholder="https://github.com/you/project" required />
+            </label>
+            <label class="full">
+              Explanation
+              <textarea
+                id="explanation"
+                name="explanation"
+                rows="5"
+                placeholder="Explain approach, tradeoffs, complexity, and what you learned"
+                required
+              ></textarea>
+            </label>
+            <label class="full">
+              LinkedIn Post Link
+              <input
+                id="linkedinLink"
+                name="linkedin"
+                type="url"
+                placeholder="https://www.linkedin.com/posts/..."
+                required
+              />
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary">Submit Entry</button>
+          <p id="submissionNotice" class="notice"></p>
+        </form>
+      </section>
+
+      <section class="page hidden" data-page="leaderboard">
+        <div class="section-head reveal">
+          <h2>Leaderboard</h2>
+          <p>Ranked by total monthly points. Top performers are highlighted.</p>
+        </div>
+
+        <div id="topThree" class="top-three reveal"></div>
+
+        <div class="card table-wrap reveal">
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Name</th>
+                <th>Total Points</th>
+                <th>Tasks Completed</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="page hidden" data-page="start-here">
+        <div class="section-head reveal">
+          <h2>Start Here</h2>
+          <p>Follow these steps to compete effectively in NammaRust.</p>
+        </div>
+
+        <div class="card start-steps reveal">
+          <ol>
+            <li>Sign in with your Google account.</li>
+            <li>Read monthly challenges by difficulty.</li>
+            <li>Build and push your Rust solution on GitHub.</li>
+            <li>Write a strong technical explanation.</li>
+            <li>Share your work on LinkedIn.</li>
+            <li>Submit through the form and track leaderboard updates.</li>
+          </ol>
+          <p class="mono">Tip: early and high-quality submissions usually score better.</p>
+        </div>
+      </section>
+
+      <section class="page hidden" data-page="admin" id="adminPage">
+        <div class="section-head reveal">
+          <h2>Admin Dashboard</h2>
+          <p>Manage challenges, score submissions, and maintain role-based governance.</p>
+        </div>
+
+        <div id="adminLocked" class="card hidden">
+          <h3>Access Denied</h3>
+          <p>This section is restricted to admin and super_admin users.</p>
+        </div>
+
+        <div id="adminContent" class="hidden">
+          <div class="admin-tabs reveal">
+            <button class="tab-btn active" data-admin-view="challenge">Challenge Management</button>
+            <button class="tab-btn" data-admin-view="submissions">Score Management</button>
+            <button class="tab-btn" data-admin-view="admins" id="adminTabAdmins">Admin Management</button>
+          </div>
+
+          <section class="admin-view card reveal" data-admin-panel="challenge">
+            <h3>Add / Edit Challenge</h3>
+            <form id="challengeForm" class="form-grid">
+              <input type="hidden" id="challengeId" />
+              <label>
+                Title
+                <input id="challengeTitle" type="text" required />
+              </label>
+              <label>
+                Difficulty
+                <select id="challengeDifficulty" required>
+                  <option value="Easy">Easy</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Hard">Hard</option>
+                  <option value="Open">Open</option>
+                </select>
+              </label>
+              <label class="full">
+                Description
+                <textarea id="challengeDescription" rows="4" required></textarea>
+              </label>
+              <label class="full">
+                Requirements
+                <textarea id="challengeRequirements" rows="4" required></textarea>
+              </label>
+              <label>
+                Month
+                <input id="challengeMonth" type="text" required />
+              </label>
+              <div class="inline-actions">
+                <button type="submit" class="btn btn-primary">Save Challenge</button>
+                <button id="challengeResetBtn" type="button" class="btn btn-ghost">Clear</button>
+              </div>
+            </form>
+            <p id="challengeNotice" class="notice"></p>
+
+            <div class="table-wrap admin-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Difficulty</th>
+                    <th>Month</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminChallengeBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="admin-view card hidden reveal" data-admin-panel="submissions">
+            <h3>View Submissions and Assign Scores</h3>
+            <p class="mono">Score fields: solve, explanation, code quality, linkedin, bonus, penalty.</p>
+            <div class="table-wrap admin-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Participant</th>
+                    <th>Task</th>
+                    <th>GitHub</th>
+                    <th>Submit Time</th>
+                    <th>Scoring</th>
+                  </tr>
+                </thead>
+                <tbody id="adminSubmissionBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="admin-view card hidden reveal" data-admin-panel="admins" id="superAdminPanel">
+            <h3>Admin Management (Super Admin)</h3>
+            <form id="adminRoleForm" class="form-grid">
+              <label>
+                User Email
+                <input id="adminTargetEmail" type="email" placeholder="member@example.com" required />
+              </label>
+              <label>
+                Action
+                <select id="adminRoleAction" required>
+                  <option value="add_admin">Add Admin</option>
+                  <option value="remove_admin">Remove Admin</option>
+                  <option value="transfer_super_admin">Transfer Super Admin</option>
+                </select>
+              </label>
+              <button type="submit" class="btn btn-primary">Apply Action</button>
+            </form>
+            <p id="adminRoleNotice" class="notice"></p>
+
+            <div class="table-wrap admin-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Total Points</th>
+                  </tr>
+                </thead>
+                <tbody id="usersRoleBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>Built for NammaRust community challenges | Fair scoring | Monthly archives retained</p>
+      </div>
+    </footer>
+
+    <template id="emptyStateTemplate">
+      <p class="empty-state">No challenge available yet</p>
+    </template>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
