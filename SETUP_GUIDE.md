@@ -450,6 +450,32 @@ This runs from client session. For guaranteed monthly automation even when nobod
 4. Add server timestamps for all critical writes.
 5. Add backup strategy for Firestore and Form responses.
 
+## 17. Production files now included in this project
+
+The project now includes production-oriented config files:
+
+1. firestore.rules
+2. firestore.indexes.json
+3. netlify.toml
+4. PRODUCTION_QA.md
+
+### 17.1 Deploy Firestore rules and indexes
+
+If Firebase CLI is installed and project is initialized, run:
+
+~~~bash
+firebase deploy --only firestore:rules
+firebase deploy --only firestore:indexes
+~~~
+
+### 17.2 Netlify
+
+netlify.toml is already prepared with:
+
+1. SPA redirect handling
+2. Security headers (CSP, X-Frame-Options, etc.)
+3. Basic cache headers for html/css/js
+
 ---
 
 If you want, next step I can create:

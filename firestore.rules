@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentRole() {
+      return signedIn() && currentUserDoc().data.role != null
+        ? currentUserDoc().data.role
+        : "user";
+    }
+
+    function isAdmin() {
+      return signedIn() && (currentRole() == "admin" || currentRole() == "super_admin");
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && currentRole() == "super_admin";
+    }
+
+    function isBootstrapSuperAdmin() {
+      return signedIn() && request.auth.token.email == "suriyasureshkumarkannian@gmail.com";
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId
+        && request.resource.data.totalPoints == 0
+        && request.resource.data.tasksCompleted == 0
+        && (
+          request.resource.data.role == "user"
+          || (request.resource.data.role == "super_admin" && isBootstrapSuperAdmin())
+        );
+
+      allow update: if isSuperAdmin()
+        || (
+          signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.totalPoints == resource.data.totalPoints
+          && request.resource.data.tasksCompleted == resource.data.tasksCompleted
+        );
+
+      allow delete: if isSuperAdmin();
+    }
+
+    match /challenges/{challengeId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /submissions/{submissionId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.id == submissionId
+        && request.resource.data.totalScore == 0;
+
+      allow update, delete: if isAdmin();
+    }
+
+    match /archives/{archiveId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+  }
+}

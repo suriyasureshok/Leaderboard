@@ -79,6 +79,14 @@ const SCORE_LIMITS = {
   penalty: { min: -10, max: 0 },
 };
 
+const FIELD_LIMITS = {
+  title: 120,
+  description: 1000,
+  requirements: 2000,
+  explanation: 5000,
+  generic: 300,
+};
+
 const state = {
   currentMonth: "",
   currentUser: null,
@@ -176,6 +184,67 @@ function setNotice(target, message, isError = false) {
   if (!target) return;
   target.textContent = message;
   target.style.color = isError ? "#ff8f8f" : "#ff9a62";
+}
+
+function clearNotices() {
+  setNotice(dom.submissionNotice, "");
+  setNotice(dom.challengeNotice, "");
+  setNotice(dom.adminRoleNotice, "");
+}
+
+function trimToLength(value, maxLength = FIELD_LIMITS.generic) {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function safeText(value, fallback = "-") {
+  const normalized = trimToLength(value, FIELD_LIMITS.explanation);
+  return normalized || fallback;
+}
+
+function safeNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeHttpUrl(value) {
+  const raw = trimToLength(value, FIELD_LIMITS.explanation);
+  if (!raw) return "";
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.href;
+  } catch {
+    return "";
+  }
+}
+
+function urlContainsHost(urlValue, hostFragment) {
+  try {
+    const host = new URL(urlValue).hostname.toLowerCase();
+    return host.includes(hostFragment.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function isValidMonthLabel(value) {
+  const normalized = trimToLength(value, 30);
+  const monthPattern = /^(January|February|March|April|May|June|July|August|September|October|November|December)\s\d{4}$/;
+  return monthPattern.test(normalized);
+}
+
+function isAllowedDifficulty(value) {
+  return DIFFICULTY_ORDER.includes(value);
 }
 
 function showPage(routeName) {
@@ -320,18 +389,25 @@ function renderChallenges() {
     }
 
     difficultyBuckets[key].forEach((challenge) => {
+      const challengeId = safeText(challenge.id, "");
+      const difficulty = safeText(challenge.difficulty, "Open");
+      const month = safeText(challenge.month, state.currentMonth);
+      const title = safeText(challenge.title, "Untitled Challenge");
+      const description = safeText(challenge.description, "No description.");
+      const requirements = safeText(challenge.requirements, "No requirements.");
+
       const card = document.createElement("article");
       card.className = "challenge-card";
       card.innerHTML = `
         <div class="meta">
-          <span class="tag ${difficultyTagClass(challenge.difficulty)}">${challenge.difficulty}</span>
-          <span class="challenge-code">${challenge.month}</span>
+          <span class="tag ${difficultyTagClass(difficulty)}">${escapeHtml(difficulty)}</span>
+          <span class="challenge-code">${escapeHtml(month)}</span>
         </div>
-        <h4>${challenge.title}</h4>
-        <p>${challenge.description}</p>
-        <p><strong>Requirements:</strong> ${challenge.requirements}</p>
+        <h4>${escapeHtml(title)}</h4>
+        <p>${escapeHtml(description)}</p>
+        <p><strong>Requirements:</strong> ${escapeHtml(requirements)}</p>
         <p><strong>Deadline bonus:</strong> Same day +5 | Next day +2</p>
-        <button class="small-btn save" data-submit-task="${challenge.id}">Submit for this task</button>
+        <button class="small-btn save" data-submit-task="${escapeHtml(challengeId)}">Submit for this task</button>
       `;
       container.appendChild(card);
     });
@@ -356,35 +432,44 @@ function renderLeaderboard(rows) {
   dom.topThree.innerHTML = "";
 
   if (!rows.length) {
+    const month = safeText(state.currentMonth, "current month");
     dom.leaderboardBody.innerHTML = `
       <tr>
-        <td colspan="4">No leaderboard data for ${state.currentMonth} yet.</td>
+        <td colspan="4">No leaderboard data for ${escapeHtml(month)} yet.</td>
       </tr>
     `;
     return;
   }
 
   rows.slice(0, 3).forEach((entry, index) => {
+    const name = safeText(entry.name, "Participant");
+    const points = safeNumber(entry.totalPoints, 0);
+    const tasksCompleted = safeNumber(entry.tasksCompleted, 0);
+
     const card = document.createElement("article");
     card.className = "top-card";
     card.innerHTML = `
       <small>#${index + 1}</small>
-      <h3>${entry.name}</h3>
-      <p>${entry.totalPoints} pts</p>
-      <small>${entry.tasksCompleted} tasks</small>
+      <h3>${escapeHtml(name)}</h3>
+      <p>${points} pts</p>
+      <small>${tasksCompleted} tasks</small>
     `;
     dom.topThree.appendChild(card);
   });
 
   rows.forEach((entry, index) => {
+    const name = safeText(entry.name, "Participant");
+    const points = safeNumber(entry.totalPoints, 0);
+    const tasksCompleted = safeNumber(entry.tasksCompleted, 0);
+
     const rank = index + 1;
     const row = document.createElement("tr");
     const rankClass = rank <= 3 ? `rank-top-${rank}` : "";
     row.innerHTML = `
       <td class="${rankClass}">${rank}</td>
-      <td>${entry.name}</td>
-      <td>${entry.totalPoints}</td>
-      <td>${entry.tasksCompleted}</td>
+      <td>${escapeHtml(name)}</td>
+      <td>${points}</td>
+      <td>${tasksCompleted}</td>
     `;
     dom.leaderboardBody.appendChild(row);
   });
@@ -403,14 +488,19 @@ function renderAdminChallengeTable() {
   }
 
   state.challenges.forEach((challenge) => {
+    const challengeId = safeText(challenge.id, "");
+    const title = safeText(challenge.title, "Untitled");
+    const difficulty = safeText(challenge.difficulty, "Open");
+    const month = safeText(challenge.month, state.currentMonth);
+
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td>${challenge.title}</td>
-      <td>${challenge.difficulty}</td>
-      <td>${challenge.month}</td>
+      <td>${escapeHtml(title)}</td>
+      <td>${escapeHtml(difficulty)}</td>
+      <td>${escapeHtml(month)}</td>
       <td>
-        <button class="small-btn" data-edit-challenge="${challenge.id}">Edit</button>
-        <button class="small-btn delete" data-delete-challenge="${challenge.id}">Delete</button>
+        <button class="small-btn" data-edit-challenge="${escapeHtml(challengeId)}">Edit</button>
+        <button class="small-btn delete" data-delete-challenge="${escapeHtml(challengeId)}">Delete</button>
       </td>
     `;
     dom.adminChallengeBody.appendChild(row);
@@ -483,6 +573,13 @@ function renderAdminSubmissions() {
   }
 
   state.submissions.forEach((submission) => {
+    const participantName = safeText(submission.userName, "Unknown");
+    const participantEmail = safeText(submission.userEmail, "-");
+    const taskLabel = safeText(submission.taskTitle || submission.taskId, "Unknown task");
+    const githubUrl = normalizeHttpUrl(submission.github);
+    const submissionId = safeText(submission.id, "");
+    const submissionTime = safeText(formatTimestamp(submission.timestamp), "-");
+
     const scores = {
       solve: getSubmissionScore(submission, "solve"),
       explanation: getSubmissionScore(submission, "explanation"),
@@ -495,15 +592,15 @@ function renderAdminSubmissions() {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>
-        <strong>${submission.userName || "Unknown"}</strong>
+        <strong>${escapeHtml(participantName)}</strong>
         <br />
-        <small>${submission.userEmail || "-"}</small>
+        <small>${escapeHtml(participantEmail)}</small>
       </td>
-      <td>${submission.taskTitle || submission.taskId}</td>
-      <td><a href="${submission.github}" target="_blank" rel="noreferrer">Open</a></td>
-      <td>${formatTimestamp(submission.timestamp)}</td>
+      <td>${escapeHtml(taskLabel)}</td>
+      <td>${githubUrl ? `<a href="${escapeHtml(githubUrl)}" target="_blank" rel="noreferrer">Open</a>` : "Invalid URL"}</td>
+      <td>${escapeHtml(submissionTime)}</td>
       <td>
-        <form class="score-form" data-submission-id="${submission.id}">
+        <form class="score-form" data-submission-id="${escapeHtml(submissionId)}">
           <div class="score-grid">
             <label>Solve (0-10)<input name="solve" type="number" min="0" max="10" value="${scores.solve}" /></label>
             <label>Explanation (0-10)<input name="explanation" type="number" min="0" max="10" value="${scores.explanation}" /></label>
@@ -536,12 +633,17 @@ function renderUsersRoleTable() {
   }
 
   state.users.forEach((user) => {
+    const name = safeText(user.name, "-");
+    const email = safeText(user.email, "-");
+    const role = safeText(user.role || "user", "user");
+    const totalPoints = safeNumber(user.totalPoints, 0);
+
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td>${user.name || "-"}</td>
-      <td>${user.email || "-"}</td>
-      <td>${user.role || "user"}</td>
-      <td>${user.totalPoints || 0}</td>
+      <td>${escapeHtml(name)}</td>
+      <td>${escapeHtml(email)}</td>
+      <td>${escapeHtml(role)}</td>
+      <td>${totalPoints}</td>
     `;
     dom.usersRoleBody.appendChild(row);
   });
@@ -649,24 +751,15 @@ async function upsertUserProfile(user) {
   }
 
   const existingData = userSnap.data();
-  const updates = { ...baseData };
+  const updates = {
+    userId: user.uid,
+    name: user.displayName || existingData.name || "NammaRust Member",
+    email: user.email || existingData.email || "",
+    updatedAt: serverTimestamp(),
+  };
 
   if (!existingData.role) updates.role = "user";
-
-  // Preserve old month stats by archiving before reset.
-  if (existingData.month && existingData.month !== state.currentMonth) {
-    await addDoc(collection(db, "archives"), {
-      type: "user_monthly_archive",
-      userId: user.uid,
-      month: existingData.month,
-      totalPoints: existingData.totalPoints || 0,
-      tasksCompleted: existingData.tasksCompleted || 0,
-      archivedAt: serverTimestamp(),
-    });
-
-    updates.totalPoints = 0;
-    updates.tasksCompleted = 0;
-  }
+  if (!existingData.month) updates.month = state.currentMonth;
 
   await setDoc(userRef, updates, { merge: true });
 }
@@ -684,7 +777,11 @@ async function fetchChallenges() {
   state.challenges = snapshot.docs
     .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
     .sort((a, b) => {
-      const diff = DIFFICULTY_ORDER.indexOf(a.difficulty) - DIFFICULTY_ORDER.indexOf(b.difficulty);
+      const aIndex = DIFFICULTY_ORDER.indexOf(a.difficulty);
+      const bIndex = DIFFICULTY_ORDER.indexOf(b.difficulty);
+      const safeAIndex = aIndex === -1 ? DIFFICULTY_ORDER.length : aIndex;
+      const safeBIndex = bIndex === -1 ? DIFFICULTY_ORDER.length : bIndex;
+      const diff = safeAIndex - safeBIndex;
       if (diff !== 0) return diff;
       return a.title.localeCompare(b.title);
     });
@@ -719,19 +816,17 @@ async function submitToGoogleForm(payload) {
 async function saveSubmission(payload) {
   if (!db) throw new Error("Firebase is not configured.");
 
-  const duplicateCheck = query(
-    collection(db, "submissions"),
-    where("userId", "==", payload.userId),
-    where("taskId", "==", payload.taskId),
-    where("month", "==", state.currentMonth)
-  );
+  const monthKey = state.currentMonth.replace(/\s+/g, "_").toLowerCase();
+  const submissionId = `${payload.userId}__${payload.taskId}__${monthKey}`;
+  const submissionDocRef = doc(db, "submissions", submissionId);
 
-  const duplicateSnap = await getDocs(duplicateCheck);
-  if (!duplicateSnap.empty) {
+  const existingSubmission = await getDoc(submissionDocRef);
+  if (existingSubmission.exists()) {
     throw new Error("You have already submitted this challenge for the current month.");
   }
 
-  const submissionRef = await addDoc(collection(db, "submissions"), {
+  await setDoc(submissionDocRef, {
+    id: submissionId,
     userId: payload.userId,
     userName: payload.name,
     userEmail: payload.email,
@@ -751,10 +846,11 @@ async function saveSubmission(payload) {
       penalty: 0,
     },
     totalScore: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 
-  await updateDoc(submissionRef, { id: submissionRef.id });
-  return submissionRef.id;
+  return submissionId;
 }
 
 async function updateLeaderboard() {
@@ -799,7 +895,8 @@ async function updateLeaderboard() {
     aggregate[userId].tasksCompleted += 1;
   });
 
-  const batch = writeBatch(db);
+  const shouldPersistAggregates = isAdminRole();
+  const batch = shouldPersistAggregates ? writeBatch(db) : null;
   const rows = usersSnap.docs.map((userDoc) => {
     const user = userDoc.data();
     const calc = aggregate[userDoc.id] || {
@@ -820,21 +917,41 @@ async function updateLeaderboard() {
       month: state.currentMonth,
     };
 
-    batch.set(
-      userDoc.ref,
-      {
-        totalPoints: entry.totalPoints,
-        tasksCompleted: entry.tasksCompleted,
-        month: state.currentMonth,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    if (shouldPersistAggregates) {
+      batch.set(
+        userDoc.ref,
+        {
+          totalPoints: entry.totalPoints,
+          tasksCompleted: entry.tasksCompleted,
+          month: state.currentMonth,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
 
     return entry;
   });
 
-  await batch.commit();
+  // Include users that have submissions this month but no corresponding users doc.
+  Object.entries(aggregate).forEach(([userId, aggregateEntry]) => {
+    const alreadyExists = rows.some((item) => item.userId === userId);
+    if (alreadyExists) return;
+
+    rows.push({
+      userId,
+      name: aggregateEntry.name || "Participant",
+      email: aggregateEntry.email || "",
+      role: "user",
+      totalPoints: aggregateEntry.totalPoints,
+      tasksCompleted: aggregateEntry.tasksCompleted,
+      month: state.currentMonth,
+    });
+  });
+
+  if (shouldPersistAggregates) {
+    await batch.commit();
+  }
 
   rows.sort((a, b) => {
     if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
@@ -905,16 +1022,39 @@ async function handleChallengeSubmit(event) {
 
   const challengeId = dom.challengeId.value.trim();
   const payload = {
-    title: dom.challengeTitle.value.trim(),
-    description: dom.challengeDescription.value.trim(),
+    title: trimToLength(dom.challengeTitle.value, FIELD_LIMITS.title),
+    description: trimToLength(dom.challengeDescription.value, FIELD_LIMITS.description),
     difficulty: dom.challengeDifficulty.value,
-    requirements: dom.challengeRequirements.value.trim(),
-    month: dom.challengeMonth.value.trim() || state.currentMonth,
+    requirements: trimToLength(dom.challengeRequirements.value, FIELD_LIMITS.requirements),
+    month: trimToLength(dom.challengeMonth.value, 30) || state.currentMonth,
     updatedAt: serverTimestamp(),
   };
 
   if (!payload.title || !payload.description || !payload.requirements) {
     setNotice(dom.challengeNotice, "Please fill all challenge fields.", true);
+    return;
+  }
+
+  if (!isAllowedDifficulty(payload.difficulty)) {
+    setNotice(dom.challengeNotice, "Invalid difficulty selected.", true);
+    return;
+  }
+
+  if (!isValidMonthLabel(payload.month)) {
+    setNotice(dom.challengeNotice, "Month must be in format like April 2026.", true);
+    return;
+  }
+
+  const duplicateChallenge = state.challenges.some(
+    (item) =>
+      item.id !== challengeId &&
+      String(item.month || "").toLowerCase() === payload.month.toLowerCase() &&
+      String(item.title || "").toLowerCase() === payload.title.toLowerCase() &&
+      String(item.difficulty || "").toLowerCase() === payload.difficulty.toLowerCase()
+  );
+
+  if (duplicateChallenge) {
+    setNotice(dom.challengeNotice, "A challenge with same title, month, and difficulty already exists.", true);
     return;
   }
 
@@ -974,6 +1114,11 @@ async function handleSubmissionSubmit(event) {
     return;
   }
 
+  if (!navigator.onLine) {
+    setNotice(dom.submissionNotice, "You are offline. Connect to internet and try again.", true);
+    return;
+  }
+
   const selectedTaskId = dom.taskSelect.value;
   const challenge = state.challenges.find((item) => item.id === selectedTaskId);
   if (!challenge) {
@@ -981,15 +1126,39 @@ async function handleSubmissionSubmit(event) {
     return;
   }
 
+  if (challenge.month !== state.currentMonth) {
+    setNotice(dom.submissionNotice, "Selected challenge is not in the current month.", true);
+    return;
+  }
+
+  const githubUrl = normalizeHttpUrl(dom.githubLink.value);
+  const linkedinUrl = normalizeHttpUrl(dom.linkedinLink.value);
+  const explanationText = trimToLength(dom.explanation.value, FIELD_LIMITS.explanation);
+
+  if (!githubUrl || !urlContainsHost(githubUrl, "github.com")) {
+    setNotice(dom.submissionNotice, "Enter a valid GitHub URL.", true);
+    return;
+  }
+
+  if (!linkedinUrl || !urlContainsHost(linkedinUrl, "linkedin.com")) {
+    setNotice(dom.submissionNotice, "Enter a valid LinkedIn URL.", true);
+    return;
+  }
+
+  if (explanationText.length < 30) {
+    setNotice(dom.submissionNotice, "Explanation is too short. Please add at least 30 characters.", true);
+    return;
+  }
+
   const payload = {
     userId: state.currentUser.uid,
-    name: dom.submitName.value.trim(),
-    email: dom.submitEmail.value.trim(),
+    name: trimToLength(dom.submitName.value, FIELD_LIMITS.generic),
+    email: trimToLength(dom.submitEmail.value, FIELD_LIMITS.generic),
     taskId: selectedTaskId,
-    taskTitle: challenge.title,
-    github: dom.githubLink.value.trim(),
-    explanation: dom.explanation.value.trim(),
-    linkedin: dom.linkedinLink.value.trim(),
+    taskTitle: trimToLength(challenge.title, FIELD_LIMITS.title),
+    github: githubUrl,
+    explanation: explanationText,
+    linkedin: linkedinUrl,
   };
 
   const submitButton = dom.submissionForm.querySelector("button[type='submit']");
@@ -1023,7 +1192,15 @@ async function handleScoreFormSubmit(event) {
   const form = event.target;
   if (!form.classList.contains("score-form")) return;
 
-  const submissionId = form.dataset.submissionId;
+  const submissionId = trimToLength(form.dataset.submissionId, FIELD_LIMITS.generic);
+  if (!submissionId) return;
+
+  const existingSubmission = state.submissions.find((item) => item.id === submissionId);
+  if (!existingSubmission) {
+    setNotice(dom.challengeNotice, "Submission no longer exists or view is stale. Refresh and try again.", true);
+    return;
+  }
+
   const formData = new FormData(form);
   const normalizedScores = normalizeScorePayload({
     solve: formData.get("solve"),
@@ -1065,6 +1242,11 @@ async function handleAdminRoleUpdate(event) {
 
   if (!targetEmail) {
     setNotice(dom.adminRoleNotice, "Please provide a target email.", true);
+    return;
+  }
+
+  if (action === "transfer_super_admin" && state.currentUser?.email?.toLowerCase() === targetEmail) {
+    setNotice(dom.adminRoleNotice, "You are already the super_admin.", true);
     return;
   }
 
@@ -1132,6 +1314,9 @@ async function resetMonthlyView() {
   dom.challengeMonth.value = state.currentMonth;
 
   if (!db) return state.currentMonth;
+
+  // In production mode, only admin/super_admin should execute global month reset writes.
+  if (!state.currentUser || !isAdminRole()) return state.currentMonth;
 
   const now = new Date();
   if (now.getDate() !== 1) return state.currentMonth;
@@ -1217,6 +1402,7 @@ async function handleAuthStateChange(user) {
     try {
       await upsertUserProfile(user);
       state.currentRole = await checkUserRole(user.uid);
+      await resetMonthlyView();
     } catch (error) {
       console.error("User profile sync failed:", error);
       if (error?.code === "permission-denied") {
@@ -1269,6 +1455,14 @@ function wireUiEvents() {
 
   dom.adminSubmissionBody.addEventListener("submit", handleScoreFormSubmit);
   dom.adminRoleForm.addEventListener("submit", handleAdminRoleUpdate);
+
+  window.addEventListener("offline", () => {
+    setNotice(dom.submissionNotice, "You are offline. Some actions are temporarily unavailable.", true);
+  });
+
+  window.addEventListener("online", () => {
+    setNotice(dom.submissionNotice, "Back online. You can continue now.");
+  });
 }
 
 async function initFirebase() {
@@ -1279,6 +1473,8 @@ async function initFirebase() {
   provider.setCustomParameters({ prompt: "select_account" });
 
   await setPersistence(auth, browserLocalPersistence);
+  clearNotices();
+
   onAuthStateChanged(auth, async (user) => {
     try {
       await handleAuthStateChange(user);
@@ -1305,10 +1501,10 @@ async function initFirebase() {
 function renderSetupHints() {
   setNotice(
     dom.submissionNotice,
-    "Firebase config and Google Form entry IDs are placeholders. Update script.js to enable live features.",
+    "Could not initialize Firebase services. Check credentials, authorized domain, and network connectivity.",
     true
   );
-  setNotice(dom.challengeNotice, "Admin features are disabled until Firebase is configured.", true);
+  setNotice(dom.challengeNotice, "Admin actions are disabled until Firebase initializes successfully.", true);
 }
 
 async function bootstrap() {
